@@ -1,0 +1,17 @@
+[package]
+name = "vulkan"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ash-window = "0.13.0"
+nalgebra = "0.34.2"
+jay-ash = { version = "0.4.0", features = ["linked"] }
+raw-window-handle = "0.6.2"
+thiserror = "2.0.18"
+tobj = "4.0.3"
+winit = "0.31.0-beta.2"
+
+[lints.clippy]
+pedantic = "warn"
+nursery = "warn"
