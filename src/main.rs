@@ -23,6 +23,10 @@ struct App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        if self.window.is_some() {
+            return;
+        }
+
         let window_attributes = WindowAttributes::default()
             .with_title("Vulkan")
             .with_surface_size(LogicalSize::new(WIDTH, HEIGHT))
@@ -86,7 +90,7 @@ impl ApplicationHandler for App {
 fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
 
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
 
     event_loop.run_app(App::default())?;
 

@@ -139,9 +139,11 @@ impl VulkanDevice {
                 .any(|av_ext| av_ext.extension_name_as_c_str().unwrap() == ext)
         });
 
-        let mut vulkan13_features = vk::PhysicalDeviceVulkan13Features::default();
+        let mut vulkan13_features =
+            vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
         let mut extended_dynamic_state_features =
-            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default();
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
+                .extended_dynamic_state(true);
 
         let mut features2 = vk::PhysicalDeviceFeatures2::default()
             .push_next(&mut vulkan13_features)

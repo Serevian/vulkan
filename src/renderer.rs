@@ -118,3 +118,11 @@ impl Renderer {
         Ok(extensions)
     }
 }
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.device.logical_device.device_wait_idle();
+        }
+    }
+}
