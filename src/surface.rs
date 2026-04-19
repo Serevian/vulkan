@@ -16,11 +16,11 @@ impl VulkanSurface {
         window_handle: RawWindowHandle,
     ) -> Result<Self, RendererError> {
         let surface = unsafe {
-            SurfaceFactory::new(entry, &instance, display_handle)?
+            SurfaceFactory::new(entry, instance, display_handle)?
                 .create_surface(window_handle, None)?
         };
 
-        let surface_loader = khr::surface::Instance::new(entry, &instance);
+        let surface_loader = khr::surface::Instance::new(entry, instance);
 
         Ok(Self {
             surface,
@@ -28,11 +28,11 @@ impl VulkanSurface {
         })
     }
 
-    pub fn loader(&self) -> &khr::surface::Instance {
+    pub const fn loader(&self) -> &khr::surface::Instance {
         &self.loader
     }
 
-    pub fn surface(&self) -> &vk::SurfaceKHR {
+    pub const fn surface(&self) -> &vk::SurfaceKHR {
         &self.surface
     }
 }

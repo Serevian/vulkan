@@ -1,10 +1,14 @@
 use jay_ash::vk::DebugUtilsMessengerCreateInfoEXT;
-use jay_ash::{Entry, Instance, khr, vk};
+use jay_ash::{Entry, Instance, vk};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use std::ffi::{CStr, c_char};
+use std::sync::Arc;
+use winit::dpi::PhysicalSize;
 
 use crate::device::VulkanDevice;
 use crate::surface::VulkanSurface;
+use crate::surface_factory;
+use crate::swapchain::VulkanSwapchain;
 use crate::vulkan_debug::VulkanDebug;
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
@@ -27,7 +31,8 @@ pub enum RendererError {
 }
 
 pub struct Renderer {
-    device: VulkanDevice,
+    swapchain: VulkanSwapchain,
+    device: Arc<VulkanDevice>,
     surface: VulkanSurface,
     debug: VulkanDebug,
     instance: Instance,
@@ -38,6 +43,7 @@ impl Renderer {
     pub fn new(
         raw_display_handle: RawDisplayHandle,
         raw_window_handle: RawWindowHandle,
+        size: PhysicalSize<u32>,
     ) -> Result<Self, RendererError> {
         let entry = Entry::linked();
 
@@ -47,9 +53,12 @@ impl Renderer {
 
         let surface = VulkanSurface::new(&entry, &instance, raw_display_handle, raw_window_handle)?;
 
-        let device = VulkanDevice::new(&instance, &surface)?;
+        let device = Arc::new(VulkanDevice::new(&instance, &surface)?);
+
+        let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size)?;
 
         Ok(Self {
+            swapchain,
             device,
             surface,
             debug,
@@ -61,7 +70,7 @@ impl Renderer {
     fn new_instance(
         entry: &Entry,
         raw_display_handle: RawDisplayHandle,
-    ) -> Result<(Instance, DebugUtilsMessengerCreateInfoEXT), RendererError> {
+    ) -> Result<(Instance, DebugUtilsMessengerCreateInfoEXT<'_>), RendererError> {
         let app_info = vk::ApplicationInfo::default()
             .application_name(c"Hello Triangle")
             .engine_name(c"Vulkan Engine")
@@ -97,7 +106,7 @@ impl Renderer {
         raw_display_handle: RawDisplayHandle,
     ) -> Result<Vec<*const c_char>, RendererError> {
         // Already checks if we have a supported surface
-        let window_extensions = ash_window::enumerate_required_extensions(raw_display_handle)
+        let window_extensions = surface_factory::enumerate_required_extensions(raw_display_handle)
             .map_err(|_| vk::Result::ERROR_EXTENSION_NOT_PRESENT)?;
 
         let mut extensions = window_extensions.to_vec();

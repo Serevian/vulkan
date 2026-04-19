@@ -2,6 +2,7 @@ mod device;
 mod renderer;
 mod surface;
 mod surface_factory;
+mod swapchain;
 mod vulkan_debug;
 
 use std::error::Error;
@@ -40,7 +41,9 @@ impl ApplicationHandler for App {
             .unwrap()
             .as_raw();
 
-        let renderer = match renderer::Renderer::new(display_handle, window_handle) {
+        let window_size = window.surface_size();
+
+        let renderer = match renderer::Renderer::new(display_handle, window_handle, window_size) {
             Ok(renderer) => renderer,
             Err(e) => {
                 eprintln!(

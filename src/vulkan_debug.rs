@@ -18,7 +18,7 @@ impl VulkanDebug {
         instance: &Instance,
         debug_create_info: vk::DebugUtilsMessengerCreateInfoEXT,
     ) -> Result<Self, RendererError> {
-        let debug_utils = ext::debug_utils::Instance::new(entry, &instance);
+        let debug_utils = ext::debug_utils::Instance::new(entry, instance);
         let debug_messenger =
             unsafe { debug_utils.create_debug_utils_messenger(&debug_create_info, None)? };
 
@@ -48,7 +48,6 @@ impl VulkanDebug {
         Ok(())
     }
 
-    #[cfg(debug_assertions)]
     pub fn debug_messenger_create_info() -> vk::DebugUtilsMessengerCreateInfoEXT<'static> {
         vk::DebugUtilsMessengerCreateInfoEXT::default()
             .message_severity(
@@ -63,7 +62,6 @@ impl VulkanDebug {
             .pfn_user_callback(Some(Self::vulkan_debug_callback))
     }
 
-    #[cfg(debug_assertions)]
     unsafe extern "system" fn vulkan_debug_callback(
         severity: vk::DebugUtilsMessageSeverityFlagsEXT,
         m_type: vk::DebugUtilsMessageTypeFlagsEXT,

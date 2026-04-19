@@ -25,8 +25,8 @@ impl Queue {
 
 pub struct VulkanDevice {
     queue: Queue,
-    logical_device: jay_ash::Device,
-    physical_device: vk::PhysicalDevice,
+    pub logical_device: jay_ash::Device,
+    pub physical_device: vk::PhysicalDevice,
 }
 
 impl VulkanDevice {
