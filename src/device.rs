@@ -88,11 +88,16 @@ impl VulkanDevice {
             .queue_family_index(queue_index.unwrap() as u32)
             .queue_priorities(&[0.5]);
 
-        let mut vulkan13_features = vk::PhysicalDeviceVulkan13Features::default();
+        let mut vulkan11_features =
+            vk::PhysicalDeviceVulkan11Features::default().shader_draw_parameters(true);
+        let mut vulkan13_features =
+            vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
         let mut extended_dynamic_state_features =
-            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default();
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
+                .extended_dynamic_state(true);
 
         let mut features2 = vk::PhysicalDeviceFeatures2::default()
+            .push_next(&mut vulkan11_features)
             .push_next(&mut vulkan13_features)
             .push_next(&mut extended_dynamic_state_features);
 
@@ -139,6 +144,8 @@ impl VulkanDevice {
                 .any(|av_ext| av_ext.extension_name_as_c_str().unwrap() == ext)
         });
 
+        let mut vulkan11_features =
+            vk::PhysicalDeviceVulkan11Features::default().shader_draw_parameters(true);
         let mut vulkan13_features =
             vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
         let mut extended_dynamic_state_features =
@@ -146,6 +153,7 @@ impl VulkanDevice {
                 .extended_dynamic_state(true);
 
         let mut features2 = vk::PhysicalDeviceFeatures2::default()
+            .push_next(&mut vulkan11_features)
             .push_next(&mut vulkan13_features)
             .push_next(&mut extended_dynamic_state_features);
 

@@ -1,4 +1,5 @@
 mod device;
+mod graphics_pipeline;
 mod renderer;
 mod surface;
 mod surface_factory;

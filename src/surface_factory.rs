@@ -83,81 +83,86 @@ impl SurfaceFactory {
         window_handle: RawWindowHandle,
         allocation_callbacks: Option<&vk::AllocationCallbacks>,
     ) -> VkResult<vk::SurfaceKHR> {
-        match (&self.0, window_handle) {
-            (SurfaceExtension::Windows(surface_fn), RawWindowHandle::Win32(window)) => {
-                let surface_desc = vk::Win32SurfaceCreateInfoKHR::default()
-                    .hwnd(window.hwnd.get())
-                    .hinstance(
-                        window
-                            .hinstance
-                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
-                            .get(),
-                    );
-                surface_fn.create_win32_surface(&surface_desc, allocation_callbacks)
+        unsafe {
+            match (&self.0, window_handle) {
+                (SurfaceExtension::Windows(surface_fn), RawWindowHandle::Win32(window)) => {
+                    let surface_desc = vk::Win32SurfaceCreateInfoKHR::default()
+                        .hwnd(window.hwnd.get())
+                        .hinstance(
+                            window
+                                .hinstance
+                                .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                                .get(),
+                        );
+                    surface_fn.create_win32_surface(&surface_desc, allocation_callbacks)
+                }
+
+                (
+                    SurfaceExtension::Wayland(display, surface_fn),
+                    RawWindowHandle::Wayland(window),
+                ) => {
+                    let surface_desc = vk::WaylandSurfaceCreateInfoKHR::default()
+                        .display(display.display.as_ptr())
+                        .surface(window.surface.as_ptr());
+                    surface_fn.create_wayland_surface(&surface_desc, allocation_callbacks)
+                }
+
+                (SurfaceExtension::Xlib(display, surface_fn), RawWindowHandle::Xlib(window)) => {
+                    let surface_desc = vk::XlibSurfaceCreateInfoKHR::default()
+                        .dpy(
+                            display
+                                .display
+                                .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                                .as_ptr(),
+                        )
+                        .window(window.window);
+                    surface_fn.create_xlib_surface(&surface_desc, allocation_callbacks)
+                }
+
+                (SurfaceExtension::Xcb(display, surface_fn), RawWindowHandle::Xcb(window)) => {
+                    let surface_desc = vk::XcbSurfaceCreateInfoKHR::default()
+                        .connection(
+                            display
+                                .connection
+                                .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                                .as_ptr(),
+                        )
+                        .window(window.window.get());
+                    surface_fn.create_xcb_surface(&surface_desc, allocation_callbacks)
+                }
+
+                (SurfaceExtension::Android(surface_fn), RawWindowHandle::AndroidNdk(window)) => {
+                    let surface_desc = vk::AndroidSurfaceCreateInfoKHR::default()
+                        .window(window.a_native_window.as_ptr());
+                    surface_fn.create_android_surface(&surface_desc, allocation_callbacks)
+                }
+
+                #[cfg(target_os = "macos")]
+                (SurfaceExtension::AppKit(surface_fn), RawWindowHandle::AppKit(window)) => {
+                    use raw_window_metal::{Layer, appkit};
+
+                    let layer = match appkit::metal_layer_from_handle(window) {
+                        Layer::Existing(layer) | Layer::Allocated(layer) => layer.cast(),
+                    };
+
+                    let surface_desc = vk::MetalSurfaceCreateInfoEXT::default().layer(&*layer);
+                    surface_fn.create_metal_surface(&surface_desc, allocation_callbacks)
+                }
+
+                #[cfg(target_os = "ios")]
+                (SurfaceExtension::UiKit(surface_fn), RawWindowHandle::UiKit(window)) => {
+                    use raw_window_metal::{Layer, uikit};
+
+                    let layer = match uikit::metal_layer_from_handle(window) {
+                        Layer::Existing(layer) | Layer::Allocated(layer) => layer.cast(),
+                    };
+
+                    let surface_desc = vk::MetalSurfaceCreateInfoEXT::default().layer(&*layer);
+                    surface_fn.create_metal_surface(&surface_desc, allocation_callbacks)
+                }
+
+                _ => Err(vk::Result::ERROR_EXTENSION_NOT_PRESENT),
             }
-
-            (SurfaceExtension::Wayland(display, surface_fn), RawWindowHandle::Wayland(window)) => {
-                let surface_desc = vk::WaylandSurfaceCreateInfoKHR::default()
-                    .display(display.display.as_ptr())
-                    .surface(window.surface.as_ptr());
-                surface_fn.create_wayland_surface(&surface_desc, allocation_callbacks)
-            }
-
-            (SurfaceExtension::Xlib(display, surface_fn), RawWindowHandle::Xlib(window)) => {
-                let surface_desc = vk::XlibSurfaceCreateInfoKHR::default()
-                    .dpy(
-                        display
-                            .display
-                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
-                            .as_ptr(),
-                    )
-                    .window(window.window);
-                surface_fn.create_xlib_surface(&surface_desc, allocation_callbacks)
-            }
-
-            (SurfaceExtension::Xcb(display, surface_fn), RawWindowHandle::Xcb(window)) => {
-                let surface_desc = vk::XcbSurfaceCreateInfoKHR::default()
-                    .connection(
-                        display
-                            .connection
-                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
-                            .as_ptr(),
-                    )
-                    .window(window.window.get());
-                surface_fn.create_xcb_surface(&surface_desc, allocation_callbacks)
-            }
-
-            (SurfaceExtension::Android(surface_fn), RawWindowHandle::AndroidNdk(window)) => {
-                let surface_desc = vk::AndroidSurfaceCreateInfoKHR::default()
-                    .window(window.a_native_window.as_ptr());
-                surface_fn.create_android_surface(&surface_desc, allocation_callbacks)
-            }
-
-            #[cfg(target_os = "macos")]
-            (SurfaceExtension::AppKit(surface_fn), RawWindowHandle::AppKit(window)) => {
-                use raw_window_metal::{Layer, appkit};
-
-                let layer = match appkit::metal_layer_from_handle(window) {
-                    Layer::Existing(layer) | Layer::Allocated(layer) => layer.cast(),
-                };
-
-                let surface_desc = vk::MetalSurfaceCreateInfoEXT::default().layer(&*layer);
-                surface_fn.create_metal_surface(&surface_desc, allocation_callbacks)
-            }
-
-            #[cfg(target_os = "ios")]
-            (SurfaceExtension::UiKit(surface_fn), RawWindowHandle::UiKit(window)) => {
-                use raw_window_metal::{Layer, uikit};
-
-                let layer = match uikit::metal_layer_from_handle(window) {
-                    Layer::Existing(layer) | Layer::Allocated(layer) => layer.cast(),
-                };
-
-                let surface_desc = vk::MetalSurfaceCreateInfoEXT::default().layer(&*layer);
-                surface_fn.create_metal_surface(&surface_desc, allocation_callbacks)
-            }
-
-            _ => Err(vk::Result::ERROR_EXTENSION_NOT_PRESENT),
         }
     }
 }
@@ -169,7 +174,7 @@ impl SurfaceFactory {
 /// extensions and creation of a compatible Vulkan instance prior to creating a window.
 ///
 /// The returned extensions will include all extension dependencies.
-pub fn enumerate_required_extensions(
+pub const fn enumerate_required_extensions(
     display_handle: RawDisplayHandle,
 ) -> VkResult<&'static [*const c_char]> {
     let extensions = match display_handle {

@@ -14,7 +14,7 @@ pub struct VulkanSwapchain {
     image_views: Vec<vk::ImageView>,
     images: Vec<vk::Image>,
     extent: vk::Extent2D,
-    format: vk::SurfaceFormatKHR,
+    pub format: vk::SurfaceFormatKHR,
     swapchain: vk::SwapchainKHR,
     swapchain_device: khr::swapchain::Device,
     device: Arc<VulkanDevice>,

@@ -6,16 +6,14 @@ use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
 use crate::device::VulkanDevice;
+use crate::graphics_pipeline::GraphicsPipelines;
 use crate::surface::VulkanSurface;
 use crate::surface_factory;
 use crate::swapchain::VulkanSwapchain;
 use crate::vulkan_debug::VulkanDebug;
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
-pub const DEVICE_EXTENSIONS: &[&CStr] = &[
-    vk::KHR_SWAPCHAIN_EXTENSION_NAME,
-    vk::EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
-];
+pub const DEVICE_EXTENSIONS: &[&CStr] = &[vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const DEBUG_EXTENSIONS: &[&CStr] = &[vk::EXT_DEBUG_UTILS_EXTENSION_NAME];
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +29,7 @@ pub enum RendererError {
 }
 
 pub struct Renderer {
+    graphics_pipeline: GraphicsPipelines,
     swapchain: VulkanSwapchain,
     device: Arc<VulkanDevice>,
     surface: VulkanSurface,
@@ -57,7 +56,10 @@ impl Renderer {
 
         let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size)?;
 
+        let graphics_pipeline = GraphicsPipelines::new(device.clone(), &swapchain)?;
+
         Ok(Self {
+            graphics_pipeline,
             swapchain,
             device,
             surface,
