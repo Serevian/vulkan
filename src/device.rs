@@ -9,8 +9,8 @@ use crate::{
 
 pub struct Queue {
     handle: vk::Queue,
-    family_index: u32,
-    index: u32,
+    pub family_index: u32,
+    pub index: u32,
 }
 
 impl Queue {
@@ -24,7 +24,7 @@ impl Queue {
 }
 
 pub struct VulkanDevice {
-    queue: Queue,
+    pub queue: Queue,
     pub logical_device: jay_ash::Device,
     pub physical_device: vk::PhysicalDevice,
 }
@@ -90,8 +90,9 @@ impl VulkanDevice {
 
         let mut vulkan11_features =
             vk::PhysicalDeviceVulkan11Features::default().shader_draw_parameters(true);
-        let mut vulkan13_features =
-            vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
+        let mut vulkan13_features = vk::PhysicalDeviceVulkan13Features::default()
+            .dynamic_rendering(true)
+            .synchronization2(true);
         let mut extended_dynamic_state_features =
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
                 .extended_dynamic_state(true);
@@ -146,8 +147,9 @@ impl VulkanDevice {
 
         let mut vulkan11_features =
             vk::PhysicalDeviceVulkan11Features::default().shader_draw_parameters(true);
-        let mut vulkan13_features =
-            vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
+        let mut vulkan13_features = vk::PhysicalDeviceVulkan13Features::default()
+            .dynamic_rendering(true)
+            .synchronization2(true);
         let mut extended_dynamic_state_features =
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
                 .extended_dynamic_state(true);

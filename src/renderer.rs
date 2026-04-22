@@ -5,8 +5,9 @@ use std::ffi::{CStr, c_char};
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
+use crate::command_context::CommandContext;
 use crate::device::VulkanDevice;
-use crate::graphics_pipeline::GraphicsPipelines;
+use crate::graphics_pipeline::GraphicsPipeline;
 use crate::surface::VulkanSurface;
 use crate::surface_factory;
 use crate::swapchain::VulkanSwapchain;
@@ -29,7 +30,11 @@ pub enum RendererError {
 }
 
 pub struct Renderer {
-    graphics_pipeline: GraphicsPipelines,
+    draw_fence: vk::Fence,
+    render_finished: vk::Semaphore,
+    present_complete: vk::Semaphore,
+    command_context: CommandContext,
+    graphics_pipeline: GraphicsPipeline,
     swapchain: VulkanSwapchain,
     device: Arc<VulkanDevice>,
     surface: VulkanSurface,
@@ -56,9 +61,34 @@ impl Renderer {
 
         let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size)?;
 
-        let graphics_pipeline = GraphicsPipelines::new(device.clone(), &swapchain)?;
+        let graphics_pipeline = GraphicsPipeline::new(device.clone(), &swapchain)?;
+
+        let command_context = CommandContext::new(device.clone())?;
+
+        let present_complete = unsafe {
+            device
+                .logical_device
+                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
+        };
+
+        let render_finished = unsafe {
+            device
+                .logical_device
+                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
+        };
+
+        let draw_fence = unsafe {
+            device.logical_device.create_fence(
+                &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
+                None,
+            )?
+        };
 
         Ok(Self {
+            draw_fence,
+            render_finished,
+            present_complete,
+            command_context,
             graphics_pipeline,
             swapchain,
             device,
@@ -119,12 +149,83 @@ impl Renderer {
 
         Ok(extensions)
     }
+
+    pub fn draw(&self) -> Result<(), RendererError> {
+        unsafe {
+            self.device
+                .logical_device
+                .wait_for_fences(&[self.draw_fence], true, u64::MAX)?;
+
+            self.device
+                .logical_device
+                .reset_fences(&[self.draw_fence])?;
+
+            let (image_index, suboptimal) = self.swapchain.loader.acquire_next_image(
+                self.swapchain.swapchain,
+                u64::MAX,
+                self.present_complete,
+                vk::Fence::null(),
+            )?;
+
+            let image = self.swapchain.images[image_index as usize];
+            let image_view = self.swapchain.image_views[image_index as usize];
+            self.command_context.record_command_buffer(
+                image,
+                image_view,
+                self.swapchain.extent,
+                &self.graphics_pipeline,
+            );
+
+            let wait_destination_stage_mask = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+
+            let present_temp = [self.present_complete];
+            let wait_temp = [wait_destination_stage_mask];
+            let command_temp = [self.command_context.buffer];
+            let render_temp = [self.render_finished];
+
+            let submit_info = vk::SubmitInfo::default()
+                .wait_semaphores(&present_temp)
+                .wait_dst_stage_mask(&wait_temp)
+                .command_buffers(&command_temp)
+                .signal_semaphores(&render_temp);
+
+            let queue = self
+                .device
+                .logical_device
+                .get_device_queue(self.device.queue.family_index, self.device.queue.index);
+
+            self.device
+                .logical_device
+                .queue_submit(queue, &[submit_info], self.draw_fence)?;
+
+            let swapchain_temp = [self.swapchain.swapchain];
+            let index_temp = [image_index];
+            let present_info = vk::PresentInfoKHR::default()
+                .wait_semaphores(&render_temp)
+                .swapchains(&swapchain_temp)
+                .image_indices(&index_temp);
+
+            let result = self.swapchain.loader.queue_present(queue, &present_info);
+        };
+
+        Ok(())
+    }
 }
 
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
             let _ = self.device.logical_device.device_wait_idle();
+
+            self.device
+                .logical_device
+                .destroy_fence(self.draw_fence, None);
+            self.device
+                .logical_device
+                .destroy_semaphore(self.render_finished, None);
+            self.device
+                .logical_device
+                .destroy_semaphore(self.present_complete, None);
         }
     }
 }

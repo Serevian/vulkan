@@ -4,13 +4,13 @@ use jay_ash::vk;
 
 use crate::{device::VulkanDevice, renderer::RendererError, swapchain::VulkanSwapchain};
 
-pub struct GraphicsPipelines {
-    graphics_pipelines: Vec<vk::Pipeline>,
+pub struct GraphicsPipeline {
+    pub pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
     device: Arc<VulkanDevice>,
 }
 
-impl GraphicsPipelines {
+impl GraphicsPipeline {
     pub fn new(
         device: Arc<VulkanDevice>,
         swapchain: &VulkanSwapchain,
@@ -71,7 +71,7 @@ impl GraphicsPipelines {
             .dynamic_state(&dynamic_state)
             .layout(pipeline_layout)
             .push_next(&mut pipeline_rendering_info);
-        let graphics_pipelines = unsafe {
+        let graphics_pipeline = unsafe {
             device
                 .logical_device
                 .create_graphics_pipelines(
@@ -89,7 +89,7 @@ impl GraphicsPipelines {
         }
 
         Ok(Self {
-            graphics_pipelines,
+            pipeline: graphics_pipeline[0],
             pipeline_layout,
             device,
         })
@@ -125,12 +125,12 @@ impl GraphicsPipelines {
     }
 }
 
-impl Drop for GraphicsPipelines {
+impl Drop for GraphicsPipeline {
     fn drop(&mut self) {
         unsafe {
-            for pipeline in &self.graphics_pipelines {
-                self.device.logical_device.destroy_pipeline(*pipeline, None);
-            }
+            self.device
+                .logical_device
+                .destroy_pipeline(self.pipeline, None);
 
             self.device
                 .logical_device

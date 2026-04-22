@@ -11,13 +11,13 @@ use crate::renderer::RendererError;
 use crate::surface::VulkanSurface;
 
 pub struct VulkanSwapchain {
-    image_views: Vec<vk::ImageView>,
-    images: Vec<vk::Image>,
-    extent: vk::Extent2D,
+    pub image_views: Vec<vk::ImageView>,
+    pub images: Vec<vk::Image>,
+    pub extent: vk::Extent2D,
     pub format: vk::SurfaceFormatKHR,
-    swapchain: vk::SwapchainKHR,
-    swapchain_device: khr::swapchain::Device,
-    device: Arc<VulkanDevice>,
+    pub swapchain: vk::SwapchainKHR,
+    pub loader: khr::swapchain::Device,
+    pub device: Arc<VulkanDevice>,
 }
 
 impl VulkanSwapchain {
@@ -66,7 +66,7 @@ impl VulkanSwapchain {
             extent,
             format,
             swapchain,
-            swapchain_device,
+            loader: swapchain_device,
             device,
         })
     }
@@ -181,8 +181,7 @@ impl Drop for VulkanSwapchain {
                     .logical_device
                     .destroy_image_view(*image_view, None);
             }
-            self.swapchain_device
-                .destroy_swapchain(self.swapchain, None);
+            self.loader.destroy_swapchain(self.swapchain, None);
         };
     }
 }

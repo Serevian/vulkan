@@ -1,3 +1,4 @@
+mod command_context;
 mod device;
 mod graphics_pipeline;
 mod renderer;
@@ -75,13 +76,9 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                // Draw using vulkan
-                //
-                // self.window.pre_present_notify()
-                //
-                // Swap buffers
-
-                self.window.as_ref().unwrap().request_redraw();
+                if let Some(renderer) = &self.renderer {
+                    renderer.draw();
+                }
             }
             _ => (),
         }
@@ -91,7 +88,7 @@ impl ApplicationHandler for App {
 fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
 
-    event_loop.set_control_flow(ControlFlow::Wait);
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     event_loop.run_app(App::default())?;
 
