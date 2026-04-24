@@ -5,8 +5,8 @@ use std::ffi::{CStr, c_char};
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
-use crate::command_context::CommandContext;
 use crate::device::VulkanDevice;
+use crate::frame_data::FrameData;
 use crate::graphics_pipeline::GraphicsPipeline;
 use crate::surface::VulkanSurface;
 use crate::surface_factory;
@@ -16,6 +16,7 @@ use crate::vulkan_debug::VulkanDebug;
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
 pub const DEVICE_EXTENSIONS: &[&CStr] = &[vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const DEBUG_EXTENSIONS: &[&CStr] = &[vk::EXT_DEBUG_UTILS_EXTENSION_NAME];
+pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RendererError {
@@ -30,10 +31,8 @@ pub enum RendererError {
 }
 
 pub struct Renderer {
-    draw_fence: vk::Fence,
-    render_finished: vk::Semaphore,
-    present_complete: vk::Semaphore,
-    command_context: CommandContext,
+    current_frame_index: usize,
+    frame_data: Vec<FrameData>,
     graphics_pipeline: GraphicsPipeline,
     swapchain: VulkanSwapchain,
     device: Arc<VulkanDevice>,
@@ -59,36 +58,19 @@ impl Renderer {
 
         let device = Arc::new(VulkanDevice::new(&instance, &surface)?);
 
-        let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size)?;
+        let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size, None)?;
 
         let graphics_pipeline = GraphicsPipeline::new(device.clone(), &swapchain)?;
 
-        let command_context = CommandContext::new(device.clone())?;
-
-        let present_complete = unsafe {
-            device
-                .logical_device
-                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
-        };
-
-        let render_finished = unsafe {
-            device
-                .logical_device
-                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
-        };
-
-        let draw_fence = unsafe {
-            device.logical_device.create_fence(
-                &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
-                None,
-            )?
-        };
+        let mut frame_data = Vec::new();
+        for _ in 0..MAX_FRAMES_IN_FLIGHT {
+            let frame = FrameData::new(device.clone())?;
+            frame_data.push(frame);
+        }
 
         Ok(Self {
-            draw_fence,
-            render_finished,
-            present_complete,
-            command_context,
+            current_frame_index: 0,
+            frame_data,
             graphics_pipeline,
             swapchain,
             device,
@@ -150,26 +132,28 @@ impl Renderer {
         Ok(extensions)
     }
 
-    pub fn draw(&self) -> Result<(), RendererError> {
+    pub fn draw(&mut self) -> Result<(), RendererError> {
         unsafe {
-            self.device
-                .logical_device
-                .wait_for_fences(&[self.draw_fence], true, u64::MAX)?;
+            self.device.logical.wait_for_fences(
+                &[self.frame_data[self.current_frame_index].draw_fence],
+                true,
+                u64::MAX,
+            )?;
 
             self.device
-                .logical_device
-                .reset_fences(&[self.draw_fence])?;
+                .logical
+                .reset_fences(&[self.frame_data[self.current_frame_index].draw_fence])?;
 
             let (image_index, suboptimal) = self.swapchain.loader.acquire_next_image(
-                self.swapchain.swapchain,
+                self.swapchain.handle,
                 u64::MAX,
-                self.present_complete,
+                self.frame_data[self.current_frame_index].present_complete_semaphore,
                 vk::Fence::null(),
             )?;
 
             let image = self.swapchain.images[image_index as usize];
             let image_view = self.swapchain.image_views[image_index as usize];
-            self.command_context.record_command_buffer(
+            self.frame_data[self.current_frame_index].record_command_buffer(
                 image,
                 image_view,
                 self.swapchain.extent,
@@ -178,10 +162,11 @@ impl Renderer {
 
             let wait_destination_stage_mask = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
 
-            let present_temp = [self.present_complete];
+            let present_temp =
+                [self.frame_data[self.current_frame_index].present_complete_semaphore];
             let wait_temp = [wait_destination_stage_mask];
-            let command_temp = [self.command_context.buffer];
-            let render_temp = [self.render_finished];
+            let command_temp = [self.frame_data[self.current_frame_index].buffer];
+            let render_temp = [self.frame_data[self.current_frame_index].render_finished_semaphore];
 
             let submit_info = vk::SubmitInfo::default()
                 .wait_semaphores(&present_temp)
@@ -191,14 +176,16 @@ impl Renderer {
 
             let queue = self
                 .device
-                .logical_device
+                .logical
                 .get_device_queue(self.device.queue.family_index, self.device.queue.index);
 
-            self.device
-                .logical_device
-                .queue_submit(queue, &[submit_info], self.draw_fence)?;
+            self.device.logical.queue_submit(
+                queue,
+                &[submit_info],
+                self.frame_data[self.current_frame_index].draw_fence,
+            )?;
 
-            let swapchain_temp = [self.swapchain.swapchain];
+            let swapchain_temp = [self.swapchain.handle];
             let index_temp = [image_index];
             let present_info = vk::PresentInfoKHR::default()
                 .wait_semaphores(&render_temp)
@@ -208,6 +195,27 @@ impl Renderer {
             let result = self.swapchain.loader.queue_present(queue, &present_info);
         };
 
+        self.current_frame_index = (self.current_frame_index + 1) % MAX_FRAMES_IN_FLIGHT;
+
+        Ok(())
+    }
+
+    pub fn recreate_swapchain(&mut self, new_size: PhysicalSize<u32>) -> Result<(), RendererError> {
+        unsafe { self.device.logical.device_wait_idle()? }
+
+        let new_swapchain = VulkanSwapchain::new(
+            &self.instance,
+            self.device.clone(),
+            &self.surface,
+            new_size,
+            Some(self.swapchain.handle),
+        )?;
+
+        let new_graphics_pipeline = GraphicsPipeline::new(self.device.clone(), &new_swapchain)?;
+
+        self.swapchain = new_swapchain;
+        self.graphics_pipeline = new_graphics_pipeline;
+
         Ok(())
     }
 }
@@ -215,17 +223,7 @@ impl Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
-            let _ = self.device.logical_device.device_wait_idle();
-
-            self.device
-                .logical_device
-                .destroy_fence(self.draw_fence, None);
-            self.device
-                .logical_device
-                .destroy_semaphore(self.render_finished, None);
-            self.device
-                .logical_device
-                .destroy_semaphore(self.present_complete, None);
+            let _ = self.device.logical.device_wait_idle();
         }
     }
 }

@@ -25,8 +25,8 @@ impl Queue {
 
 pub struct VulkanDevice {
     pub queue: Queue,
-    pub logical_device: jay_ash::Device,
-    pub physical_device: vk::PhysicalDevice,
+    pub logical: jay_ash::Device,
+    pub physical: vk::PhysicalDevice,
 }
 
 impl VulkanDevice {
@@ -37,8 +37,8 @@ impl VulkanDevice {
 
         Ok(Self {
             queue: graphics_queue,
-            logical_device,
-            physical_device,
+            logical: logical_device,
+            physical: physical_device,
         })
     }
 
@@ -176,7 +176,7 @@ impl VulkanDevice {
 impl Drop for VulkanDevice {
     fn drop(&mut self) {
         unsafe {
-            self.logical_device.destroy_device(None);
+            self.logical.destroy_device(None);
         }
     }
 }

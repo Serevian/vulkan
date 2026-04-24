@@ -3,6 +3,7 @@ use std::sync::Arc;
 use jay_ash::Instance;
 use jay_ash::khr;
 use jay_ash::vk;
+use jay_ash::vk::SwapchainKHR;
 use nalgebra::clamp;
 use winit::dpi::PhysicalSize;
 
@@ -15,7 +16,7 @@ pub struct VulkanSwapchain {
     pub images: Vec<vk::Image>,
     pub extent: vk::Extent2D,
     pub format: vk::SurfaceFormatKHR,
-    pub swapchain: vk::SwapchainKHR,
+    pub handle: vk::SwapchainKHR,
     pub loader: khr::swapchain::Device,
     pub device: Arc<VulkanDevice>,
 }
@@ -26,8 +27,9 @@ impl VulkanSwapchain {
         device: Arc<VulkanDevice>,
         surface: &VulkanSurface,
         size: PhysicalSize<u32>,
+        old_swapchain: Option<SwapchainKHR>,
     ) -> Result<Self, RendererError> {
-        let physical_device = device.physical_device;
+        let physical_device = device.physical;
 
         let format = Self::choose_surface_format(physical_device, surface)?;
         let present_mode = Self::choose_present_mode(physical_device, surface)?;
@@ -41,7 +43,7 @@ impl VulkanSwapchain {
 
         let image_count = Self::choose_image_count(capabilities);
 
-        let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
+        let mut swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(*surface.surface())
             .min_image_count(image_count)
             .image_format(format.format)
@@ -55,17 +57,21 @@ impl VulkanSwapchain {
             .present_mode(present_mode)
             .clipped(true);
 
-        let swapchain_device = khr::swapchain::Device::new(instance, &device.logical_device);
+        if old_swapchain.is_some() {
+            swapchain_create_info = swapchain_create_info.old_swapchain(old_swapchain.unwrap());
+        }
+
+        let swapchain_device = khr::swapchain::Device::new(instance, &device.logical);
         let swapchain = unsafe { swapchain_device.create_swapchain(&swapchain_create_info, None) }?;
         let images = unsafe { swapchain_device.get_swapchain_images(swapchain) }?;
-        let image_views = Self::create_image_views(format, &images, &device.logical_device)?;
+        let image_views = Self::create_image_views(format, &images, &device.logical)?;
 
         Ok(Self {
             image_views,
             images,
             extent,
             format,
-            swapchain,
+            handle: swapchain,
             loader: swapchain_device,
             device,
         })
@@ -177,11 +183,9 @@ impl Drop for VulkanSwapchain {
     fn drop(&mut self) {
         unsafe {
             for image_view in &self.image_views {
-                self.device
-                    .logical_device
-                    .destroy_image_view(*image_view, None);
+                self.device.logical.destroy_image_view(*image_view, None);
             }
-            self.loader.destroy_swapchain(self.swapchain, None);
+            self.loader.destroy_swapchain(self.handle, None);
         };
     }
 }

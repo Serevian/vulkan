@@ -4,34 +4,51 @@ use jay_ash::vk;
 
 use crate::{device::VulkanDevice, graphics_pipeline::GraphicsPipeline, renderer::RendererError};
 
-pub struct CommandContext {
+pub struct FrameData {
+    pub draw_fence: vk::Fence,
+    pub render_finished_semaphore: vk::Semaphore,
+    pub present_complete_semaphore: vk::Semaphore,
     pub buffer: vk::CommandBuffer,
     pool: vk::CommandPool,
     device: Arc<VulkanDevice>,
 }
 
-impl CommandContext {
+impl FrameData {
     pub fn new(device: Arc<VulkanDevice>) -> Result<Self, RendererError> {
         let pool_info = vk::CommandPoolCreateInfo::default()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(device.queue.family_index);
-        let pool = unsafe {
-            device
-                .logical_device
-                .create_command_pool(&pool_info, None)?
-        };
+        let pool = unsafe { device.logical.create_command_pool(&pool_info, None)? };
 
         let buffer_info = vk::CommandBufferAllocateInfo::default()
             .command_pool(pool)
             .level(vk::CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
-        let buffer = unsafe {
+        let buffer = unsafe { device.logical.allocate_command_buffers(&buffer_info)? };
+
+        let present_complete_semaphore = unsafe {
             device
-                .logical_device
-                .allocate_command_buffers(&buffer_info)?
+                .logical
+                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
+        };
+
+        let render_finished_semaphore = unsafe {
+            device
+                .logical
+                .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
+        };
+
+        let draw_fence = unsafe {
+            device.logical.create_fence(
+                &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
+                None,
+            )?
         };
 
         Ok(Self {
+            draw_fence,
+            render_finished_semaphore,
+            present_complete_semaphore,
             buffer: buffer[0],
             pool,
             device,
@@ -47,7 +64,7 @@ impl CommandContext {
     ) {
         unsafe {
             self.device
-                .logical_device
+                .logical
                 .begin_command_buffer(self.buffer, &vk::CommandBufferBeginInfo::default())
                 .unwrap();
         };
@@ -96,26 +113,26 @@ impl CommandContext {
 
         unsafe {
             self.device
-                .logical_device
+                .logical
                 .cmd_begin_rendering(self.buffer, &rendering_info);
 
-            self.device.logical_device.cmd_bind_pipeline(
+            self.device.logical.cmd_bind_pipeline(
                 self.buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 graphics_pipeline.pipeline,
             );
 
             self.device
-                .logical_device
+                .logical
                 .cmd_set_viewport(self.buffer, 0, &[viewport]);
 
             self.device
-                .logical_device
+                .logical
                 .cmd_set_scissor(self.buffer, 0, &[scissor]);
 
-            self.device.logical_device.cmd_draw(self.buffer, 3, 1, 0, 0);
+            self.device.logical.cmd_draw(self.buffer, 3, 1, 0, 0);
 
-            self.device.logical_device.cmd_end_rendering(self.buffer);
+            self.device.logical.cmd_end_rendering(self.buffer);
         }
 
         self.transition_image_layout(
@@ -129,10 +146,7 @@ impl CommandContext {
         );
 
         unsafe {
-            self.device
-                .logical_device
-                .end_command_buffer(self.buffer)
-                .unwrap();
+            self.device.logical.end_command_buffer(self.buffer).unwrap();
         }
     }
 
@@ -169,18 +183,23 @@ impl CommandContext {
         let dependency_info = vk::DependencyInfo::default().image_memory_barriers(&binding);
         unsafe {
             self.device
-                .logical_device
+                .logical
                 .cmd_pipeline_barrier2(self.buffer, &dependency_info);
         }
     }
 }
 
-impl Drop for CommandContext {
+impl Drop for FrameData {
     fn drop(&mut self) {
         unsafe {
+            self.device.logical.destroy_fence(self.draw_fence, None);
             self.device
-                .logical_device
-                .destroy_command_pool(self.pool, None);
+                .logical
+                .destroy_semaphore(self.render_finished_semaphore, None);
+            self.device
+                .logical
+                .destroy_semaphore(self.present_complete_semaphore, None);
+            self.device.logical.destroy_command_pool(self.pool, None);
         }
     }
 }

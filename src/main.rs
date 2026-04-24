@@ -1,5 +1,5 @@
-mod command_context;
 mod device;
+mod frame_data;
 mod graphics_pipeline;
 mod renderer;
 mod surface;
@@ -31,8 +31,7 @@ impl ApplicationHandler for App {
 
         let window_attributes = WindowAttributes::default()
             .with_title("Vulkan")
-            .with_surface_size(LogicalSize::new(WIDTH, HEIGHT))
-            .with_resizable(false);
+            .with_surface_size(LogicalSize::new(WIDTH, HEIGHT));
 
         let window = event_loop.create_window(window_attributes).unwrap();
         let display_handle = window
@@ -76,8 +75,19 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                if let Some(renderer) = &self.renderer {
-                    renderer.draw();
+                if self.renderer.is_some() {
+                    self.renderer.as_mut().unwrap().draw();
+                }
+
+                self.window.as_mut().unwrap().request_redraw();
+            }
+            WindowEvent::SurfaceResized(new_size) => {
+                if new_size.width > 0 && new_size.height > 0 {
+                    if let Some(renderer) = self.renderer.as_mut() {
+                        renderer
+                            .recreate_swapchain(new_size)
+                            .expect("Failed to resize");
+                    }
                 }
             }
             _ => (),
