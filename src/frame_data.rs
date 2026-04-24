@@ -6,6 +6,7 @@ use crate::{device::VulkanDevice, graphics_pipeline::GraphicsPipeline, renderer:
 
 pub struct FrameData {
     pub draw_fence: vk::Fence,
+    pub present_fence: vk::Fence,
     pub render_finished_semaphore: vk::Semaphore,
     pub present_complete_semaphore: vk::Semaphore,
     pub buffer: vk::CommandBuffer,
@@ -38,6 +39,13 @@ impl FrameData {
                 .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?
         };
 
+        let present_fence = unsafe {
+            device.logical.create_fence(
+                &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
+                None,
+            )?
+        };
+
         let draw_fence = unsafe {
             device.logical.create_fence(
                 &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
@@ -47,6 +55,7 @@ impl FrameData {
 
         Ok(Self {
             draw_fence,
+            present_fence,
             render_finished_semaphore,
             present_complete_semaphore,
             buffer: buffer[0],
@@ -193,6 +202,7 @@ impl Drop for FrameData {
     fn drop(&mut self) {
         unsafe {
             self.device.logical.destroy_fence(self.draw_fence, None);
+            self.device.logical.destroy_fence(self.present_fence, None);
             self.device
                 .logical
                 .destroy_semaphore(self.render_finished_semaphore, None);

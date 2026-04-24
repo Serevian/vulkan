@@ -14,7 +14,14 @@ use crate::swapchain::VulkanSwapchain;
 use crate::vulkan_debug::VulkanDebug;
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
-pub const DEVICE_EXTENSIONS: &[&CStr] = &[vk::KHR_SWAPCHAIN_EXTENSION_NAME];
+pub const INSTANCE_EXTENSIONS: &[&CStr] = &[
+    vk::KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+    vk::KHR_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
+];
+pub const DEVICE_EXTENSIONS: &[&CStr] = &[
+    vk::KHR_SWAPCHAIN_EXTENSION_NAME,
+    vk::KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
+];
 pub const DEBUG_EXTENSIONS: &[&CStr] = &[vk::EXT_DEBUG_UTILS_EXTENSION_NAME];
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -124,6 +131,7 @@ impl Renderer {
             .map_err(|_| vk::Result::ERROR_EXTENSION_NOT_PRESENT)?;
 
         let mut extensions = window_extensions.to_vec();
+        extensions.extend(INSTANCE_EXTENSIONS.iter().map(|ext| ext.as_ptr()));
 
         if cfg!(debug_assertions) {
             extensions.extend(DEBUG_EXTENSIONS.iter().map(|ext| ext.as_ptr()));
@@ -133,27 +141,29 @@ impl Renderer {
     }
 
     pub fn draw(&mut self) -> Result<(), RendererError> {
+        let frame = &self.frame_data[self.current_frame_index];
+
         unsafe {
             self.device.logical.wait_for_fences(
-                &[self.frame_data[self.current_frame_index].draw_fence],
+                &[frame.draw_fence, frame.present_fence],
                 true,
                 u64::MAX,
             )?;
 
             self.device
                 .logical
-                .reset_fences(&[self.frame_data[self.current_frame_index].draw_fence])?;
+                .reset_fences(&[frame.draw_fence, frame.present_fence])?;
 
-            let (image_index, suboptimal) = self.swapchain.loader.acquire_next_image(
+            let (image_index, _) = self.swapchain.loader.acquire_next_image(
                 self.swapchain.handle,
                 u64::MAX,
-                self.frame_data[self.current_frame_index].present_complete_semaphore,
+                frame.present_complete_semaphore,
                 vk::Fence::null(),
             )?;
 
             let image = self.swapchain.images[image_index as usize];
             let image_view = self.swapchain.image_views[image_index as usize];
-            self.frame_data[self.current_frame_index].record_command_buffer(
+            frame.record_command_buffer(
                 image,
                 image_view,
                 self.swapchain.extent,
@@ -162,16 +172,15 @@ impl Renderer {
 
             let wait_destination_stage_mask = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
 
-            let present_temp =
-                [self.frame_data[self.current_frame_index].present_complete_semaphore];
+            let present_temp = [frame.present_complete_semaphore];
             let wait_temp = [wait_destination_stage_mask];
-            let command_temp = [self.frame_data[self.current_frame_index].buffer];
-            let render_temp = [self.frame_data[self.current_frame_index].render_finished_semaphore];
+            let buffer_temp = [frame.buffer];
+            let render_temp = [frame.render_finished_semaphore];
 
             let submit_info = vk::SubmitInfo::default()
                 .wait_semaphores(&present_temp)
                 .wait_dst_stage_mask(&wait_temp)
-                .command_buffers(&command_temp)
+                .command_buffers(&buffer_temp)
                 .signal_semaphores(&render_temp);
 
             let queue = self
@@ -179,20 +188,23 @@ impl Renderer {
                 .logical
                 .get_device_queue(self.device.queue.family_index, self.device.queue.index);
 
-            self.device.logical.queue_submit(
-                queue,
-                &[submit_info],
-                self.frame_data[self.current_frame_index].draw_fence,
-            )?;
+            self.device
+                .logical
+                .queue_submit(queue, &[submit_info], frame.draw_fence)?;
+
+            let present_fence_temp = [frame.present_fence];
+            let mut present_fence_info =
+                vk::SwapchainPresentFenceInfoKHR::default().fences(&present_fence_temp);
 
             let swapchain_temp = [self.swapchain.handle];
             let index_temp = [image_index];
             let present_info = vk::PresentInfoKHR::default()
+                .push_next(&mut present_fence_info)
                 .wait_semaphores(&render_temp)
                 .swapchains(&swapchain_temp)
                 .image_indices(&index_temp);
 
-            let result = self.swapchain.loader.queue_present(queue, &present_info);
+            let _ = self.swapchain.loader.queue_present(queue, &present_info);
         };
 
         self.current_frame_index = (self.current_frame_index + 1) % MAX_FRAMES_IN_FLIGHT;

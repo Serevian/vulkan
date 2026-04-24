@@ -96,11 +96,15 @@ impl VulkanDevice {
         let mut extended_dynamic_state_features =
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
                 .extended_dynamic_state(true);
+        let mut swapchain_maintenance1 =
+            vk::PhysicalDeviceSwapchainMaintenance1FeaturesKHR::default()
+                .swapchain_maintenance1(true);
 
         let mut features2 = vk::PhysicalDeviceFeatures2::default()
             .push_next(&mut vulkan11_features)
             .push_next(&mut vulkan13_features)
-            .push_next(&mut extended_dynamic_state_features);
+            .push_next(&mut extended_dynamic_state_features)
+            .push_next(&mut swapchain_maintenance1);
 
         let extension_ptrs: Vec<*const c_char> =
             DEVICE_EXTENSIONS.iter().map(|s| s.as_ptr()).collect();
@@ -153,11 +157,15 @@ impl VulkanDevice {
         let mut extended_dynamic_state_features =
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT::default()
                 .extended_dynamic_state(true);
+        let mut swapchain_maintenance1 =
+            vk::PhysicalDeviceSwapchainMaintenance1FeaturesKHR::default()
+                .swapchain_maintenance1(true);
 
         let mut features2 = vk::PhysicalDeviceFeatures2::default()
             .push_next(&mut vulkan11_features)
             .push_next(&mut vulkan13_features)
-            .push_next(&mut extended_dynamic_state_features);
+            .push_next(&mut extended_dynamic_state_features)
+            .push_next(&mut swapchain_maintenance1);
 
         unsafe {
             instance.get_physical_device_features2(device, &mut features2);
