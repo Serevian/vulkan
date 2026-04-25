@@ -1,0 +1,63 @@
+name: Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  SLANG_VERSION: "2026.7.1"
+
+jobs:
+  Linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Slang
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/slang
+          key: slang-${{ env.SLANG_VERSION }}-linux
+
+      - name: Install Slang
+        run: |
+          if [ ! -d "${{ github.workspace }}/slang/bin" ]; then
+            curl -L -o slang.zip \
+              "https://github.com/shader-slang/slang/releases/download/v${{ env.SLANG_VERSION }}/slang-${{ env.SLANG_VERSION }}-linux-x86_64.zip"
+            unzip slang.zip -d slang
+          fi
+          echo "${{ github.workspace }}/slang/bin" >> $GITHUB_PATH
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --verbose
+  Windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Slang
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/slang
+          key: slang-${{ env.SLANG_VERSION }}-windows
+
+      - name: Install Slang
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${{ github.workspace }}\slang\bin")) {
+            Invoke-WebRequest -Uri "https://github.com/shader-slang/slang/releases/download/v${{ env.SLANG_VERSION }}/slang-${{ env.SLANG_VERSION }}-windows-x86_64.zip" -OutFile slang.zip
+            Expand-Archive slang.zip -DestinationPath slang
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}\slang\bin"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --verbose
