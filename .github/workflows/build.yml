@@ -34,15 +34,18 @@ jobs:
           echo "${{ github.workspace }}/slang/bin" >> $GITHUB_PATH
 
       - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: ${{ env.VULKAN_SDK_VERSION }}
-          cache: true
+        uses: jakoch/install-vulkan-sdk-action@v1.5.1
 
       - uses: Swatinem/rust-cache@v2.9.1
 
       - name: Build
         run: cargo build --verbose
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: vulkan-linux
+          path: target/debug/vulkan
   Windows:
     runs-on: windows-latest
     steps:
@@ -65,16 +68,15 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}\slang\bin"
 
       - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: ${{ env.VULKAN_SDK_VERSION }}
-          cache: true
-
-      - name: Add Vulkan SDK Lib to linker search path
-        shell: pwsh
-        run: echo "LIB=$env:VULKAN_SDK\Lib;$env:LIB" >> $env:GITHUB_ENV
+        uses: jakoch/install-vulkan-sdk-action@v1.5.1
 
       - uses: Swatinem/rust-cache@v2.9.1
 
       - name: Build
         run: cargo build --verbose
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: vulkan-windows
+          path: target/debug/vulkan.exe
