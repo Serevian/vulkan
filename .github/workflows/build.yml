@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SLANG_VERSION: "2026.7.1"
+  VULKAN_SDK_VERSION: "1.4.341.1"
 
 jobs:
   Linux:
@@ -31,6 +32,12 @@ jobs:
             unzip slang.zip -d slang
           fi
           echo "${{ github.workspace }}/slang/bin" >> $GITHUB_PATH
+
+      - name: Install Vulkan SDK
+        uses: lunarg/install-vulkan-sdk-action@v1
+        with:
+          version: ${{ env.VULKAN_SDK_VERSION }}
+          cache: true
 
       - uses: Swatinem/rust-cache@v2
 
@@ -56,6 +63,12 @@ jobs:
             Expand-Archive slang.zip -DestinationPath slang
           }
           Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}\slang\bin"
+
+      - name: Install Vulkan SDK
+        uses: lunarg/install-vulkan-sdk-action@v1
+        with:
+          version: ${{ env.VULKAN_SDK_VERSION }}
+          cache: true
 
       - uses: Swatinem/rust-cache@v2
 
