@@ -34,7 +34,7 @@ jobs:
           echo "${{ github.workspace }}/slang/bin" >> $GITHUB_PATH
 
       - name: Install Vulkan SDK
-        uses: lunarg/install-vulkan-sdk-action@v1
+        uses: humbletim/install-vulkan-sdk@v1
         with:
           version: ${{ env.VULKAN_SDK_VERSION }}
           cache: true
@@ -65,7 +65,7 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}\slang\bin"
 
       - name: Install Vulkan SDK
-        uses: lunarg/install-vulkan-sdk-action@v1
+        uses: humbletim/install-vulkan-sdk@v1
         with:
           version: ${{ env.VULKAN_SDK_VERSION }}
           cache: true
