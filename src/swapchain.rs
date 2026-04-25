@@ -4,12 +4,12 @@ use jay_ash::Instance;
 use jay_ash::khr;
 use jay_ash::vk;
 use jay_ash::vk::SwapchainKHR;
-use nalgebra::clamp;
+use num::clamp;
 use winit::dpi::PhysicalSize;
 
-use crate::device::VulkanDevice;
+use crate::device::Device;
 use crate::renderer::RendererError;
-use crate::surface::VulkanSurface;
+use crate::surface::Surface;
 
 pub struct VulkanSwapchain {
     pub image_views: Vec<vk::ImageView>,
@@ -18,14 +18,14 @@ pub struct VulkanSwapchain {
     pub format: vk::SurfaceFormatKHR,
     pub handle: vk::SwapchainKHR,
     pub loader: khr::swapchain::Device,
-    pub device: Arc<VulkanDevice>,
+    pub device: Arc<Device>,
 }
 
 impl VulkanSwapchain {
     pub fn new(
         instance: &Instance,
-        device: Arc<VulkanDevice>,
-        surface: &VulkanSurface,
+        device: Arc<Device>,
+        surface: &Surface,
         size: PhysicalSize<u32>,
         old_swapchain: Option<SwapchainKHR>,
     ) -> Result<Self, RendererError> {
@@ -79,7 +79,7 @@ impl VulkanSwapchain {
 
     fn choose_surface_format(
         device: vk::PhysicalDevice,
-        surface: &VulkanSurface,
+        surface: &Surface,
     ) -> Result<vk::SurfaceFormatKHR, RendererError> {
         let available_formats = unsafe {
             surface
@@ -102,7 +102,7 @@ impl VulkanSwapchain {
 
     fn choose_present_mode(
         device: vk::PhysicalDevice,
-        surface: &VulkanSurface,
+        surface: &Surface,
     ) -> Result<vk::PresentModeKHR, RendererError> {
         let available_present_mode = unsafe {
             surface

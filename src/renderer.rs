@@ -5,13 +5,15 @@ use std::ffi::{CStr, c_char};
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
-use crate::device::VulkanDevice;
+use crate::device::Device;
 use crate::frame_data::FrameData;
-use crate::graphics_pipeline::GraphicsPipeline;
-use crate::surface::VulkanSurface;
-use crate::surface_factory;
+use crate::graphics_pipeline::Pipeline;
+use crate::surface::Surface;
 use crate::swapchain::VulkanSwapchain;
+use crate::vertex::Vertex;
+use crate::vertex_buffer::VertexBuffer;
 use crate::vulkan_debug::VulkanDebug;
+use crate::{surface_factory, vertex_buffer};
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
 pub const INSTANCE_EXTENSIONS: &[&CStr] = &[
@@ -40,10 +42,11 @@ pub enum RendererError {
 pub struct Renderer {
     current_frame_index: usize,
     frame_data: Vec<FrameData>,
-    graphics_pipeline: GraphicsPipeline,
+    vertex_buffer: VertexBuffer,
+    graphics_pipeline: Pipeline,
     swapchain: VulkanSwapchain,
-    device: Arc<VulkanDevice>,
-    surface: VulkanSurface,
+    device: Arc<Device>,
+    surface: Surface,
     debug: VulkanDebug,
     instance: Instance,
     entry: Entry,
@@ -55,19 +58,48 @@ impl Renderer {
         raw_window_handle: RawWindowHandle,
         size: PhysicalSize<u32>,
     ) -> Result<Self, RendererError> {
+        let vertices = [
+            Vertex::new(
+                glam::Vec2 { x: 0.0, y: -0.5 },
+                glam::Vec3 {
+                    x: 1.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+            ),
+            Vertex::new(
+                glam::Vec2 { x: 0.5, y: 0.5 },
+                glam::Vec3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+            ),
+            Vertex::new(
+                glam::Vec2 { x: -0.5, y: 0.5 },
+                glam::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
+            ),
+        ];
+
         let entry = Entry::linked();
 
         let (instance, debug_info) = Self::new_instance(&entry, raw_display_handle)?;
 
         let debug = VulkanDebug::new(&entry, &instance, debug_info)?;
 
-        let surface = VulkanSurface::new(&entry, &instance, raw_display_handle, raw_window_handle)?;
+        let surface = Surface::new(&entry, &instance, raw_display_handle, raw_window_handle)?;
 
-        let device = Arc::new(VulkanDevice::new(&instance, &surface)?);
+        let device = Arc::new(Device::new(&instance, &surface)?);
 
         let swapchain = VulkanSwapchain::new(&instance, device.clone(), &surface, size, None)?;
 
-        let graphics_pipeline = GraphicsPipeline::new(device.clone(), &swapchain)?;
+        let graphics_pipeline = Pipeline::new(device.clone(), &swapchain)?;
+
+        let vertex_buffer = VertexBuffer::new(device.clone(), &vertices)?;
 
         let mut frame_data = Vec::new();
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
@@ -78,6 +110,7 @@ impl Renderer {
         Ok(Self {
             current_frame_index: 0,
             frame_data,
+            vertex_buffer,
             graphics_pipeline,
             swapchain,
             device,
@@ -168,6 +201,7 @@ impl Renderer {
                 image_view,
                 self.swapchain.extent,
                 &self.graphics_pipeline,
+                &self.vertex_buffer,
             );
 
             let wait_destination_stage_mask = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
@@ -188,6 +222,7 @@ impl Renderer {
                 .logical
                 .get_device_queue(self.device.queue.family_index, self.device.queue.index);
 
+            // TODO: Use features from VK_KHR_swapchain_maintenance1, they can help here if the queue submit or present give any errors
             self.device
                 .logical
                 .queue_submit(queue, &[submit_info], frame.draw_fence)?;
@@ -223,7 +258,7 @@ impl Renderer {
             Some(self.swapchain.handle),
         )?;
 
-        let new_graphics_pipeline = GraphicsPipeline::new(self.device.clone(), &new_swapchain)?;
+        let new_graphics_pipeline = Pipeline::new(self.device.clone(), &new_swapchain)?;
 
         self.swapchain = new_swapchain;
         self.graphics_pipeline = new_graphics_pipeline;

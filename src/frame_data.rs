@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use jay_ash::vk;
 
-use crate::{device::VulkanDevice, graphics_pipeline::GraphicsPipeline, renderer::RendererError};
+use crate::{
+    device::Device, graphics_pipeline::Pipeline, renderer::RendererError,
+    vertex_buffer::VertexBuffer,
+};
 
 pub struct FrameData {
     pub draw_fence: vk::Fence,
@@ -11,11 +14,11 @@ pub struct FrameData {
     pub present_complete_semaphore: vk::Semaphore,
     pub buffer: vk::CommandBuffer,
     pool: vk::CommandPool,
-    device: Arc<VulkanDevice>,
+    device: Arc<Device>,
 }
 
 impl FrameData {
-    pub fn new(device: Arc<VulkanDevice>) -> Result<Self, RendererError> {
+    pub fn new(device: Arc<Device>) -> Result<Self, RendererError> {
         let pool_info = vk::CommandPoolCreateInfo::default()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(device.queue.family_index);
@@ -69,7 +72,8 @@ impl FrameData {
         image: vk::Image,
         image_view: vk::ImageView,
         extent: vk::Extent2D,
-        graphics_pipeline: &GraphicsPipeline,
+        graphics_pipeline: &Pipeline,
+        vertex_buffer: &VertexBuffer,
     ) {
         unsafe {
             self.device
@@ -131,6 +135,13 @@ impl FrameData {
                 graphics_pipeline.pipeline,
             );
 
+            self.device.logical.cmd_bind_vertex_buffers(
+                self.buffer,
+                0,
+                &[vertex_buffer.buffer],
+                &[0],
+            );
+
             self.device
                 .logical
                 .cmd_set_viewport(self.buffer, 0, &[viewport]);
@@ -139,7 +150,9 @@ impl FrameData {
                 .logical
                 .cmd_set_scissor(self.buffer, 0, &[scissor]);
 
-            self.device.logical.cmd_draw(self.buffer, 3, 1, 0, 0);
+            self.device
+                .logical
+                .cmd_draw(self.buffer, vertex_buffer.vertices.len() as u32, 1, 0, 0);
 
             self.device.logical.cmd_end_rendering(self.buffer);
         }

@@ -5,6 +5,8 @@ mod renderer;
 mod surface;
 mod surface_factory;
 mod swapchain;
+mod vertex;
+mod vertex_buffer;
 mod vulkan_debug;
 
 use std::error::Error;

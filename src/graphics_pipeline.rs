@@ -2,22 +2,25 @@ use std::{io::Cursor, sync::Arc};
 
 use jay_ash::vk;
 
-use crate::{device::VulkanDevice, renderer::RendererError, swapchain::VulkanSwapchain};
+use crate::{device::Device, renderer::RendererError, swapchain::VulkanSwapchain, vertex::Vertex};
 
-pub struct GraphicsPipeline {
+pub struct Pipeline {
     pub pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
-    device: Arc<VulkanDevice>,
+    device: Arc<Device>,
 }
 
-impl GraphicsPipeline {
-    pub fn new(
-        device: Arc<VulkanDevice>,
-        swapchain: &VulkanSwapchain,
-    ) -> Result<Self, RendererError> {
+impl Pipeline {
+    pub fn new(device: Arc<Device>, swapchain: &VulkanSwapchain) -> Result<Self, RendererError> {
         let (pipeline_shader_info, shader_module) = Self::create_shader_modules(&device)?;
 
-        let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
+        let binding_description = [Vertex::binding_description()];
+        let attribute_description = Vertex::attribute_descriptions();
+
+        let vertex_input = vk::PipelineVertexInputStateCreateInfo::default()
+            .vertex_binding_descriptions(&binding_description)
+            .vertex_attribute_descriptions(&attribute_description);
+
         let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
             .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
         let viewport = vk::PipelineViewportStateCreateInfo::default()
@@ -46,7 +49,7 @@ impl GraphicsPipeline {
             .logic_op(vk::LogicOp::COPY)
             .attachments(&binding);
 
-        let dynamic_states = vec![vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+        let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
         let dynamic_state =
             vk::PipelineDynamicStateCreateInfo::default().dynamic_states(&dynamic_states);
 
@@ -83,9 +86,7 @@ impl GraphicsPipeline {
         };
 
         unsafe {
-            device
-                .logical
-                .destroy_shader_module(shader_module, None);
+            device.logical.destroy_shader_module(shader_module, None);
         }
 
         Ok(Self {
@@ -96,7 +97,7 @@ impl GraphicsPipeline {
     }
 
     fn create_shader_modules(
-        device: &Arc<VulkanDevice>,
+        device: &Arc<Device>,
     ) -> Result<(Vec<vk::PipelineShaderStageCreateInfo<'_>>, vk::ShaderModule), RendererError> {
         let shader_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/shader.spv"));
         let shader_code = jay_ash::util::read_spv(&mut Cursor::new(shader_bytes)).unwrap();
@@ -125,12 +126,10 @@ impl GraphicsPipeline {
     }
 }
 
-impl Drop for GraphicsPipeline {
+impl Drop for Pipeline {
     fn drop(&mut self) {
         unsafe {
-            self.device
-                .logical
-                .destroy_pipeline(self.pipeline, None);
+            self.device.logical.destroy_pipeline(self.pipeline, None);
 
             self.device
                 .logical

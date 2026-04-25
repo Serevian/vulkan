@@ -4,13 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-nalgebra = "0.34.2"
+bytemuck = { version = "1.25.0", features = [
+    "latest_stable_rust",
+    "nightly_portable_simd",
+    "nightly_docs",
+] }
+glam = { version = "0.32.1", features = ["bytemuck", "core-simd"] }
 jay-ash = { version = "0.5.0", features = ["linked"] }
+num = "0.4.3"
 raw-window-handle = "0.6.2"
 thiserror = "2.0.18"
 tobj = "4.0.3"
 winit = "0.31.0-beta.2"
 
 [lints.clippy]
-pedantic = "warn"
-nursery = "warn"
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cast_possible_truncation = "allow"

@@ -4,7 +4,7 @@ use jay_ash::{Instance, vk};
 
 use crate::{
     renderer::{DEVICE_EXTENSIONS, RendererError},
-    surface::VulkanSurface,
+    surface::Surface,
 };
 
 pub struct Queue {
@@ -23,21 +23,25 @@ impl Queue {
     }
 }
 
-pub struct VulkanDevice {
+pub struct Device {
     pub queue: Queue,
     pub logical: jay_ash::Device,
+    pub memory_properties: vk::PhysicalDeviceMemoryProperties,
     pub physical: vk::PhysicalDevice,
 }
 
-impl VulkanDevice {
-    pub fn new(instance: &Instance, surface: &VulkanSurface) -> Result<Self, RendererError> {
+impl Device {
+    pub fn new(instance: &Instance, surface: &Surface) -> Result<Self, RendererError> {
         let physical_device = Self::new_physical_device(instance)?;
+        let memory_properties =
+            unsafe { instance.get_physical_device_memory_properties(physical_device) };
         let (logical_device, graphics_queue) =
             Self::new_logical_device(physical_device, instance, surface)?;
 
         Ok(Self {
             queue: graphics_queue,
             logical: logical_device,
+            memory_properties,
             physical: physical_device,
         })
     }
@@ -59,7 +63,7 @@ impl VulkanDevice {
     fn new_logical_device(
         physical_device: vk::PhysicalDevice,
         instance: &Instance,
-        surface: &VulkanSurface,
+        surface: &Surface,
     ) -> Result<(jay_ash::Device, Queue), RendererError> {
         let queue_family_properties =
             unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
@@ -181,7 +185,7 @@ impl VulkanDevice {
     }
 }
 
-impl Drop for VulkanDevice {
+impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
             self.logical.destroy_device(None);

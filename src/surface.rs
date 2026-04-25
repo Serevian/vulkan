@@ -3,12 +3,12 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 use crate::{renderer::RendererError, surface_factory::SurfaceFactory};
 
-pub struct VulkanSurface {
+pub struct Surface {
     surface: vk::SurfaceKHR,
     loader: khr::surface::Instance,
 }
 
-impl VulkanSurface {
+impl Surface {
     pub fn new(
         entry: &Entry,
         instance: &Instance,
@@ -37,7 +37,7 @@ impl VulkanSurface {
     }
 }
 
-impl Drop for VulkanSurface {
+impl Drop for Surface {
     fn drop(&mut self) {
         unsafe {
             self.loader.destroy_surface(self.surface, None);
