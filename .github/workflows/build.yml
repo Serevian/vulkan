@@ -34,12 +34,12 @@ jobs:
           echo "${{ github.workspace }}/slang/bin" >> $GITHUB_PATH
 
       - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1
+        uses: humbletim/install-vulkan-sdk@v1.2
         with:
           version: ${{ env.VULKAN_SDK_VERSION }}
           cache: true
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
 
       - name: Build
         run: cargo build --verbose
@@ -65,12 +65,12 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}\slang\bin"
 
       - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1
+        uses: humbletim/install-vulkan-sdk@v1.2
         with:
           version: ${{ env.VULKAN_SDK_VERSION }}
           cache: true
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
 
       - name: Build
         run: cargo build --verbose
