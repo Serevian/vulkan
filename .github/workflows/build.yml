@@ -16,7 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install mold
+        run: sudo apt-get install -y mold
 
       - name: Cache Slang
         uses: actions/cache@v5
@@ -40,6 +43,8 @@ jobs:
 
       - name: Build
         run: cargo build --verbose
+        env:
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
@@ -50,7 +55,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Slang
         uses: actions/cache@v5

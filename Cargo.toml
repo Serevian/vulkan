@@ -4,12 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bytemuck = { version = "1.25.0", features = [
-    "latest_stable_rust",
-    "nightly_portable_simd",
-    "nightly_docs",
-] }
-glam = { version = "0.32.1", features = ["bytemuck", "core-simd"] }
+bytemuck = { version = "1.25.0", features = ["latest_stable_rust"] }
+glam = { version = "0.32.1", features = ["bytemuck"] }
 jay-ash = { version = "0.5.0", features = ["linked"] }
 num = "0.4.3"
 raw-window-handle = "0.6.2"
