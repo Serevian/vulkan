@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub struct Queue {
-    handle: vk::Queue,
+    pub handle: vk::Queue,
     pub family_index: u32,
     pub index: u32,
 }

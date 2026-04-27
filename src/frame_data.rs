@@ -97,18 +97,17 @@ impl FrameData {
                 float32: [0.0, 0.0, 0.0, 1.0],
             },
         };
-        let attachment_info = vk::RenderingAttachmentInfo::default()
+        let attachment_info = [vk::RenderingAttachmentInfo::default()
             .image_view(image_view)
             .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
             .store_op(vk::AttachmentStoreOp::STORE)
-            .clear_value(clear_color);
+            .clear_value(clear_color)];
 
-        let binding = [attachment_info];
         let rendering_info = vk::RenderingInfo::default()
             .render_area(vk::Rect2D::default().extent(extent))
             .layer_count(1)
-            .color_attachments(&binding);
+            .color_attachments(&attachment_info);
 
         let viewport = vk::Viewport {
             x: 0.0,
@@ -182,7 +181,7 @@ impl FrameData {
         src_stage_mask: vk::PipelineStageFlags2,
         dst_stage_mask: vk::PipelineStageFlags2,
     ) {
-        let barrier = vk::ImageMemoryBarrier2::default()
+        let barrier = [vk::ImageMemoryBarrier2::default()
             .src_stage_mask(src_stage_mask)
             .src_access_mask(src_access_mask)
             .dst_stage_mask(dst_stage_mask)
@@ -199,10 +198,9 @@ impl FrameData {
                     .level_count(1)
                     .base_array_layer(0)
                     .layer_count(1),
-            );
+            )];
 
-        let binding = [barrier];
-        let dependency_info = vk::DependencyInfo::default().image_memory_barriers(&binding);
+        let dependency_info = vk::DependencyInfo::default().image_memory_barriers(&barrier);
         unsafe {
             self.device
                 .logical
