@@ -9,11 +9,11 @@ use crate::device::Device;
 use crate::frame_data::FrameData;
 use crate::graphics_pipeline::Pipeline;
 use crate::surface::Surface;
+use crate::surface_factory;
 use crate::swapchain::VulkanSwapchain;
 use crate::vertex::Vertex;
 use crate::vertex_buffer::VertexBuffer;
 use crate::vulkan_debug::VulkanDebug;
-use crate::{surface_factory, vertex_buffer};
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
 pub const INSTANCE_EXTENSIONS: &[&CStr] = &[
@@ -177,6 +177,7 @@ impl Renderer {
         let frame = &self.frame_data[self.current_frame_index];
 
         unsafe {
+            // Wait until the GPU is done with this frame's resources (rendering done) and swapchain image (presenting done)
             self.device.logical.wait_for_fences(
                 &[frame.draw_fence, frame.present_fence],
                 true,
@@ -187,6 +188,8 @@ impl Renderer {
                 .logical
                 .reset_fences(&[frame.draw_fence, frame.present_fence])?;
 
+            // No need for the CPU to wait here because we already know the image is free
+            // Thanks to the previous present fence
             let (image_index, _) = self.swapchain.loader.acquire_next_image(
                 self.swapchain.handle,
                 u64::MAX,
@@ -204,16 +207,17 @@ impl Renderer {
                 &self.vertex_buffer,
             );
 
-            let wait_destination_stage_mask = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
-
+            // Fuck lifetimes
+            let wait_destination_stage_mask = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
             let present_temp = [frame.present_complete_semaphore];
-            let wait_temp = [wait_destination_stage_mask];
             let buffer_temp = [frame.buffer];
             let render_temp = [frame.render_finished_semaphore];
 
+            // We wait until image is safe to write
+            // Then signal that rendering can proceed
             let submit_info = vk::SubmitInfo::default()
                 .wait_semaphores(&present_temp)
-                .wait_dst_stage_mask(&wait_temp)
+                .wait_dst_stage_mask(&wait_destination_stage_mask)
                 .command_buffers(&buffer_temp)
                 .signal_semaphores(&render_temp);
 
