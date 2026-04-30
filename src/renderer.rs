@@ -47,7 +47,7 @@ pub struct Renderer {
     swapchain: VulkanSwapchain,
     device: Arc<Device>,
     surface: Surface,
-    debug: VulkanDebug,
+    debug: Option<VulkanDebug>,
     instance: Instance,
     entry: Entry,
 }
@@ -87,9 +87,16 @@ impl Renderer {
 
         let entry = Entry::linked();
 
-        let (instance, debug_info) = Self::new_instance(&entry, raw_display_handle)?;
-
+        #[cfg(debug_assertions)]
+        let (instance, debug_info) = Self::new_debug_instance(&entry, raw_display_handle)?;
+        #[cfg(debug_assertions)]
         let debug = VulkanDebug::new(&entry, &instance, debug_info)?;
+        #[cfg(debug_assertions)]
+        let debug = Some(debug);
+        #[cfg(not(debug_assertions))]
+        let instance = Self::new_instance(&entry, raw_display_handle)?;
+        #[cfg(not(debug_assertions))]
+        let debug = None;
 
         let surface = Surface::new(&entry, &instance, raw_display_handle, raw_window_handle)?;
 
@@ -121,7 +128,8 @@ impl Renderer {
         })
     }
 
-    fn new_instance(
+    #[cfg(debug_assertions)]
+    fn new_debug_instance(
         entry: &Entry,
         raw_display_handle: RawDisplayHandle,
     ) -> Result<(Instance, DebugUtilsMessengerCreateInfoEXT<'_>), RendererError> {
@@ -132,7 +140,6 @@ impl Renderer {
 
         let extensions = Self::check_instance_extensions(raw_display_handle)?;
 
-        #[cfg(debug_assertions)]
         let mut debug_create_info = VulkanDebug::debug_messenger_create_info();
 
         let mut create_info = vk::InstanceCreateInfo::default()
@@ -154,6 +161,26 @@ impl Renderer {
         let instance = unsafe { entry.create_instance(&create_info, None)? };
 
         Ok((instance, debug_create_info))
+    }
+
+    fn new_instance(
+        entry: &Entry,
+        raw_display_handle: RawDisplayHandle,
+    ) -> Result<Instance, RendererError> {
+        let app_info = vk::ApplicationInfo::default()
+            .application_name(c"Hello Triangle")
+            .engine_name(c"Vulkan Engine")
+            .api_version(vk::API_VERSION_1_4);
+
+        let extensions = Self::check_instance_extensions(raw_display_handle)?;
+
+        let create_info = vk::InstanceCreateInfo::default()
+            .application_info(&app_info)
+            .enabled_extension_names(&extensions);
+
+        let instance = unsafe { entry.create_instance(&create_info, None)? };
+
+        Ok(instance)
     }
 
     fn check_instance_extensions(

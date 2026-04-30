@@ -5,13 +5,11 @@ use std::ffi::c_void;
 
 use crate::renderer::{RendererError, VALIDATION_LAYERS};
 
-#[cfg(debug_assertions)]
 pub struct VulkanDebug {
     debug_utils: ext::debug_utils::Instance,
     debug_messenger: vk::DebugUtilsMessengerEXT,
 }
 
-#[cfg(debug_assertions)]
 impl VulkanDebug {
     pub fn new(
         entry: &Entry,
@@ -78,7 +76,6 @@ impl VulkanDebug {
 impl Drop for VulkanDebug {
     fn drop(&mut self) {
         unsafe {
-            #[cfg(debug_assertions)]
             self.debug_utils
                 .destroy_debug_utils_messenger(self.debug_messenger, None);
         }
