@@ -2,17 +2,25 @@ use std::sync::Arc;
 
 use jay_ash::vk;
 
-use crate::{device::Device, renderer::RendererError, vertex::Vertex};
+use crate::{
+    device::Device,
+    renderer::{Renderer, RendererError},
+    vertex,
+};
 
-pub struct VertexBuffer {
+pub struct Buffer {
     memory: vk::DeviceMemory,
-    pub buffer: vk::Buffer,
-    pub vertices: Vec<Vertex>,
+    pub handle: vk::Buffer,
+    pub size: usize,
+    pub count: vk::DeviceSize,
     device: Arc<Device>,
 }
 
-impl VertexBuffer {
-    pub fn new(device: Arc<Device>, vertices: &[Vertex]) -> Result<Self, RendererError> {
+impl Buffer {
+    pub fn new_vertex_buffer(
+        device: Arc<Device>,
+        vertices: &[vertex::Vertex],
+    ) -> Result<Self, RendererError> {
         let size = std::mem::size_of_val(vertices) as u64;
 
         let (staging_buffer, staging_memory) = Self::new_buffer(
@@ -51,8 +59,55 @@ impl VertexBuffer {
 
         Ok(Self {
             memory: vertex_memory,
-            buffer: vertex_buffer,
-            vertices: vertices.to_vec(),
+            handle: vertex_buffer,
+            size: size as usize,
+            count: vertices.len() as u64,
+            device,
+        })
+    }
+
+    pub fn new_index_buffer(device: Arc<Device>, indices: &[u16]) -> Result<Buffer, RendererError> {
+        let size = std::mem::size_of_val(indices) as u64;
+
+        let (staging_buffer, staging_memory) = Self::new_buffer(
+            size,
+            vk::BufferUsageFlags::TRANSFER_SRC,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            &device,
+        )?;
+
+        unsafe {
+            let data =
+                device
+                    .logical
+                    .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())?;
+
+            let bytes = bytemuck::cast_slice(indices);
+
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), data.cast::<u8>(), bytes.len());
+
+            device.logical.unmap_memory(staging_memory);
+        }
+
+        let (index_buffer, index_memory) = Self::new_buffer(
+            size,
+            vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            &device,
+        )?;
+
+        Self::copy_buffer(staging_buffer, index_buffer, size, &device)?;
+
+        unsafe {
+            device.logical.free_memory(staging_memory, None);
+            device.logical.destroy_buffer(staging_buffer, None);
+        }
+
+        Ok(Self {
+            memory: index_memory,
+            handle: index_buffer,
+            size: size as usize,
+            count: indices.len() as u64,
             device,
         })
     }
@@ -155,11 +210,11 @@ impl VertexBuffer {
     }
 }
 
-impl Drop for VertexBuffer {
+impl Drop for Buffer {
     fn drop(&mut self) {
         unsafe {
             self.device.logical.free_memory(self.memory, None);
-            self.device.logical.destroy_buffer(self.buffer, None);
+            self.device.logical.destroy_buffer(self.handle, None);
         }
     }
 }

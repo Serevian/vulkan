@@ -3,8 +3,7 @@ use std::sync::Arc;
 use jay_ash::vk;
 
 use crate::{
-    device::Device, graphics_pipeline::Pipeline, renderer::RendererError,
-    vertex_buffer::VertexBuffer,
+    device::Device, graphics_pipeline::Pipeline, renderer::RendererError, vertex_buffer::Buffer,
 };
 
 pub struct FrameData {
@@ -73,7 +72,8 @@ impl FrameData {
         image_view: vk::ImageView,
         extent: vk::Extent2D,
         graphics_pipeline: &Pipeline,
-        vertex_buffer: &VertexBuffer,
+        vertex_buffer: &Buffer,
+        index_buffer: &Buffer,
     ) {
         unsafe {
             self.device
@@ -137,8 +137,15 @@ impl FrameData {
             self.device.logical.cmd_bind_vertex_buffers(
                 self.buffer,
                 0,
-                &[vertex_buffer.buffer],
+                &[vertex_buffer.handle],
                 &[0],
+            );
+
+            self.device.logical.cmd_bind_index_buffer(
+                self.buffer,
+                index_buffer.handle,
+                0,
+                vk::IndexType::UINT16,
             );
 
             self.device
@@ -149,9 +156,14 @@ impl FrameData {
                 .logical
                 .cmd_set_scissor(self.buffer, 0, &[scissor]);
 
-            self.device
-                .logical
-                .cmd_draw(self.buffer, vertex_buffer.vertices.len() as u32, 1, 0, 0);
+            self.device.logical.cmd_draw_indexed(
+                self.buffer,
+                index_buffer.count as u32,
+                1,
+                0,
+                0,
+                0,
+            );
 
             self.device.logical.cmd_end_rendering(self.buffer);
         }

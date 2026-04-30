@@ -12,7 +12,7 @@ use crate::surface::Surface;
 use crate::surface_factory;
 use crate::swapchain::VulkanSwapchain;
 use crate::vertex::Vertex;
-use crate::vertex_buffer::VertexBuffer;
+use crate::vertex_buffer::Buffer;
 use crate::vulkan_debug::VulkanDebug;
 
 pub const VALIDATION_LAYERS: &[&CStr] = &[c"VK_LAYER_KHRONOS_validation"];
@@ -42,7 +42,8 @@ pub enum RendererError {
 pub struct Renderer {
     current_frame_index: usize,
     frame_data: Vec<FrameData>,
-    vertex_buffer: VertexBuffer,
+    index_buffer: Buffer,
+    vertex_buffer: Buffer,
     graphics_pipeline: Pipeline,
     swapchain: VulkanSwapchain,
     device: Arc<Device>,
@@ -60,7 +61,7 @@ impl Renderer {
     ) -> Result<Self, RendererError> {
         let vertices = [
             Vertex::new(
-                glam::Vec2 { x: 0.0, y: -0.5 },
+                glam::Vec2 { x: -0.5, y: -0.5 },
                 glam::Vec3 {
                     x: 1.0,
                     y: 0.0,
@@ -68,7 +69,7 @@ impl Renderer {
                 },
             ),
             Vertex::new(
-                glam::Vec2 { x: 0.5, y: 0.5 },
+                glam::Vec2 { x: 0.5, y: -0.5 },
                 glam::Vec3 {
                     x: 0.0,
                     y: 1.0,
@@ -76,14 +77,24 @@ impl Renderer {
                 },
             ),
             Vertex::new(
-                glam::Vec2 { x: -0.5, y: 0.5 },
+                glam::Vec2 { x: 0.5, y: 0.5 },
                 glam::Vec3 {
                     x: 0.0,
                     y: 0.0,
                     z: 1.0,
                 },
             ),
+            Vertex::new(
+                glam::Vec2 { x: -0.5, y: 0.5 },
+                glam::Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            ),
         ];
+
+        let indices: Vec<u16> = vec![0, 1, 2, 2, 3, 0];
 
         let entry = Entry::linked();
 
@@ -106,7 +117,9 @@ impl Renderer {
 
         let graphics_pipeline = Pipeline::new(device.clone(), &swapchain)?;
 
-        let vertex_buffer = VertexBuffer::new(device.clone(), &vertices)?;
+        let vertex_buffer = Buffer::new_vertex_buffer(device.clone(), &vertices)?;
+
+        let index_buffer = Buffer::new_index_buffer(device.clone(), &indices)?;
 
         let mut frame_data = Vec::new();
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
@@ -117,6 +130,7 @@ impl Renderer {
         Ok(Self {
             current_frame_index: 0,
             frame_data,
+            index_buffer,
             vertex_buffer,
             graphics_pipeline,
             swapchain,
@@ -232,6 +246,7 @@ impl Renderer {
                 self.swapchain.extent,
                 &self.graphics_pipeline,
                 &self.vertex_buffer,
+                &self.index_buffer,
             );
 
             // Fuck lifetimes
